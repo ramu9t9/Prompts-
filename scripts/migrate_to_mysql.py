@@ -13,6 +13,18 @@ from datetime import datetime
 import pytz
 import time
 
+def safe_int(val):
+    try:
+        if isinstance(val, (int, float)):
+            return int(val)
+        if isinstance(val, str):
+            return int(float(val))
+        if hasattr(val, '__int__'):
+            return int(val)
+    except Exception:
+        pass
+    return 0
+
 class DataMigrator:
     def __init__(self, sqlite_db_path='angel_oi_tracker/option_chain.db', 
                  mysql_host='localhost', mysql_user='root', mysql_password='YourNewPassword', 
@@ -52,7 +64,8 @@ class DataMigrator:
             
             # Count records
             cursor.execute("SELECT COUNT(*) FROM option_snapshots")
-            count = cursor.fetchone()[0]
+            result = cursor.fetchone()
+            count = result[0] if result is not None else 0
             
             print(f"📊 Found {count} records in SQLite database")
             conn.close()
@@ -191,7 +204,8 @@ class DataMigrator:
             sqlite_conn = sqlite3.connect(self.sqlite_db_path)
             sqlite_cursor = sqlite_conn.cursor()
             sqlite_cursor.execute("SELECT COUNT(*) FROM option_snapshots")
-            sqlite_count = sqlite_cursor.fetchone()[0]
+            result = sqlite_cursor.fetchone()
+            sqlite_count = result[0] if result is not None else 0
             sqlite_conn.close()
             
             # Count MySQL records
@@ -201,7 +215,8 @@ class DataMigrator:
             
             mysql_cursor = mysql_conn.cursor()
             mysql_cursor.execute("SELECT COUNT(*) FROM option_snapshots")
-            mysql_count = mysql_cursor.fetchone()[0]
+            result = mysql_cursor.fetchone()
+            mysql_count = result[0] if result is not None else 0
             mysql_conn.close()
             
             print(f"📊 SQLite records: {sqlite_count}")

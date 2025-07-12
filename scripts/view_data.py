@@ -8,6 +8,18 @@ import pandas as pd
 from datetime import datetime
 import pytz
 
+def safe_int(val):
+    try:
+        if isinstance(val, (int, float)):
+            return int(val)
+        if isinstance(val, str):
+            return int(float(val))
+        if hasattr(val, '__int__'):
+            return int(val)
+    except Exception:
+        pass
+    return 0
+
 def view_latest_data():
     """View the most recent option data"""
     conn = sqlite3.connect('option_chain.db')
@@ -15,7 +27,8 @@ def view_latest_data():
     # Get latest timestamp
     cursor = conn.cursor()
     cursor.execute('SELECT MAX(time) FROM option_snapshots')
-    latest_time = cursor.fetchone()[0]
+    result = cursor.fetchone()
+    latest_time = result[0] if result is not None else None
     
     print(f"📊 Latest Data Timestamp: {latest_time}")
     print("=" * 80)
@@ -48,12 +61,14 @@ def view_summary_stats():
     # Total records
     cursor = conn.cursor()
     cursor.execute('SELECT COUNT(*) FROM option_snapshots')
-    total_records = cursor.fetchone()[0]
+    result = cursor.fetchone()
+    total_records = result[0] if result is not None else 0
     print(f"📈 Total Records: {total_records}")
     
     # Unique timestamps
     cursor.execute('SELECT COUNT(DISTINCT time) FROM option_snapshots')
-    unique_times = cursor.fetchone()[0]
+    result = cursor.fetchone()
+    unique_times = result[0] if result is not None else 0
     print(f"🕐 Unique Timestamps: {unique_times}")
     
     # Data by index
@@ -65,7 +80,11 @@ def view_summary_stats():
     
     # Date range
     cursor.execute('SELECT MIN(time), MAX(time) FROM option_snapshots')
-    min_time, max_time = cursor.fetchone()
+    result = cursor.fetchone()
+    if result is not None:
+        min_time, max_time = result
+    else:
+        min_time, max_time = None, None
     print(f"\n📅 Date Range: {min_time} to {max_time}")
     
     conn.close()

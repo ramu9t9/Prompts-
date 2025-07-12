@@ -1,20 +1,25 @@
 #!/usr/bin/env python3
 """
-Database Migration Script for Upgraded OI Tracking System
+Database Migration Script for OI Tracking v3
 
-This script migrates the existing option_snapshots table to include
-the new candle data columns (index_open, index_high, index_low, index_close, index_volume).
+This script migrates the existing option_snapshots table to the new v3 schema
+with simplified structure focusing on essential data with candle close prices.
 
-Run this script to upgrade your existing database to the new schema.
+New Schema:
+- bucket_ts TIMESTAMP (3-minute bucket timestamp)
+- trading_symbol VARCHAR(25) (e.g., NIFTY19500)
+- option_type CHAR(2) (CE/PE)
+- strike INT
+- ce_oi BIGINT, ce_price_close DECIMAL(10,2)
+- pe_oi BIGINT, pe_price_close DECIMAL(10,2)
 """
 
 import mysql.connector
 from mysql.connector import Error
 import os
 from datetime import datetime
-import sys
 
-class SchemaMigrator:
+class V3SchemaMigrator:
     def __init__(self, host='localhost', user='root', password='YourNewPassword', database='options_analytics'):
         self.host = host
         self.user = user
@@ -50,19 +55,29 @@ class SchemaMigrator:
             
             cursor = connection.cursor()
             
+            # Check if table exists
+            cursor.execute("SHOW TABLES LIKE 'option_snapshots'")
+            table_exists = cursor.fetchone()
+            
+            if not table_exists:
+                print("📋 Table 'option_snapshots' does not exist. Will create new v3 schema.")
+                connection.close()
+                return {'table_exists': False, 'needs_migration': True}
+            
             # Get table structure
             cursor.execute("DESCRIBE option_snapshots")
             columns = cursor.fetchall()
             
             connection.close()
             
-            # Check if new columns already exist
-            column_names = [str(col[0]) for col in columns if col and len(col) > 0]
-            new_columns = ['index_open', 'index_high', 'index_low', 'index_close', 'index_volume']
+            # Check if new schema columns exist
+            column_names = [col[0] for col in columns]
+            new_columns = ['bucket_ts', 'trading_symbol', 'option_type', 'ce_price_close', 'pe_price_close']
             
             missing_columns = [col for col in new_columns if col not in column_names]
             
             return {
+                'table_exists': True,
                 'columns': columns,
                 'column_names': column_names,
                 'missing_columns': missing_columns,
@@ -83,7 +98,7 @@ class SchemaMigrator:
             cursor = connection.cursor()
             
             # Create backup table
-            backup_table = f"option_snapshots_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            backup_table = f"option_snapshots_backup_v3_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             
             print(f"📦 Creating backup table: {backup_table}")
             
@@ -101,8 +116,8 @@ class SchemaMigrator:
             print(f"❌ Error creating backup: {e}")
             return False
     
-    def add_new_columns(self):
-        """Add new candle data columns to the table"""
+    def drop_old_table(self):
+        """Drop the old table to create new schema"""
         try:
             connection = self.get_connection()
             if connection is None:
@@ -110,39 +125,21 @@ class SchemaMigrator:
             
             cursor = connection.cursor()
             
-            # Add new columns
-            new_columns = [
-                "ALTER TABLE option_snapshots ADD COLUMN index_open DECIMAL(10,2) AFTER strike",
-                "ALTER TABLE option_snapshots ADD COLUMN index_high DECIMAL(10,2) AFTER index_open",
-                "ALTER TABLE option_snapshots ADD COLUMN index_low DECIMAL(10,2) AFTER index_high",
-                "ALTER TABLE option_snapshots ADD COLUMN index_close DECIMAL(10,2) NOT NULL DEFAULT 0 AFTER index_low",
-                "ALTER TABLE option_snapshots ADD COLUMN index_volume BIGINT AFTER index_close"
-            ]
-            
-            for query in new_columns:
-                try:
-                    print(f"🔧 Executing: {query}")
-                    cursor.execute(query)
-                    print("✅ Column added successfully")
-                except Error as e:
-                    if "Duplicate column name" in str(e):
-                        print("⚠️  Column already exists, skipping")
-                    else:
-                        print(f"❌ Error adding column: {e}")
-                        return False
+            print("🗑️  Dropping old table...")
+            cursor.execute("DROP TABLE IF EXISTS option_snapshots")
             
             connection.commit()
             connection.close()
             
-            print("✅ All new columns added successfully")
+            print("✅ Old table dropped")
             return True
             
         except Error as e:
-            print(f"❌ Error adding columns: {e}")
+            print(f"❌ Error dropping old table: {e}")
             return False
     
-    def add_unique_constraint(self):
-        """Add unique constraint to ensure one snapshot per 3-minute bucket per strike"""
+    def create_new_schema(self):
+        """Create the new v3 schema"""
         try:
             connection = self.get_connection()
             if connection is None:
@@ -150,34 +147,47 @@ class SchemaMigrator:
             
             cursor = connection.cursor()
             
-            # Check if unique constraint already exists
-            cursor.execute("""
-                SELECT CONSTRAINT_NAME 
-                FROM information_schema.TABLE_CONSTRAINTS 
-                WHERE TABLE_SCHEMA = %s 
-                AND TABLE_NAME = 'option_snapshots' 
-                AND CONSTRAINT_TYPE = 'UNIQUE'
-            """, (self.database,))
+            # Create new v3 schema
+            create_table_query = """
+            CREATE TABLE option_snapshots (
+                bucket_ts TIMESTAMP NOT NULL,
+                trading_symbol VARCHAR(25) NOT NULL,
+                option_type CHAR(2) NOT NULL,
+                strike INT NOT NULL,
+                ce_oi BIGINT DEFAULT 0,
+                ce_price_close DECIMAL(10,2) DEFAULT 0,
+                pe_oi BIGINT DEFAULT 0,
+                pe_price_close DECIMAL(10,2) DEFAULT 0,
+                PRIMARY KEY(bucket_ts, trading_symbol)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """
             
-            existing_constraints = cursor.fetchall()
+            print("🔧 Creating new v3 schema...")
+            cursor.execute(create_table_query)
             
-            if not existing_constraints:
-                print("🔧 Adding unique constraint...")
-                cursor.execute("""
-                    ALTER TABLE option_snapshots 
-                    ADD CONSTRAINT unique_snapshot 
-                    UNIQUE (time, index_name, expiry, strike)
-                """)
-                print("✅ Unique constraint added")
-            else:
-                print("⚠️  Unique constraint already exists")
+            # Create indexes
+            indexes = [
+                "CREATE INDEX idx_bucket_ts ON option_snapshots(bucket_ts)",
+                "CREATE INDEX idx_trading_symbol ON option_snapshots(trading_symbol)",
+                "CREATE INDEX idx_strike ON option_snapshots(strike)",
+                "CREATE INDEX idx_bucket_symbol ON option_snapshots(bucket_ts, trading_symbol)"
+            ]
+            
+            for index_query in indexes:
+                try:
+                    cursor.execute(index_query)
+                    print(f"✅ Created index: {index_query.split()[-1]}")
+                except Error as e:
+                    print(f"⚠️  Index creation warning: {e}")
             
             connection.commit()
             connection.close()
+            
+            print("✅ New v3 schema created successfully")
             return True
             
         except Error as e:
-            print(f"❌ Error adding unique constraint: {e}")
+            print(f"❌ Error creating new schema: {e}")
             return False
     
     def verify_migration(self):
@@ -189,38 +199,46 @@ class SchemaMigrator:
             
             cursor = connection.cursor()
             
+            # Check if table exists
+            cursor.execute("SHOW TABLES LIKE 'option_snapshots'")
+            table_exists = cursor.fetchone()
+            
+            if not table_exists:
+                print("❌ Table 'option_snapshots' not found after migration")
+                return False
+            
             # Check if all new columns exist
             cursor.execute("DESCRIBE option_snapshots")
             columns = cursor.fetchall()
-            column_names = [str(col[0]) for col in columns if col and len(col) > 0]
+            column_names = [col[0] for col in columns]
             
-            new_columns = ['index_open', 'index_high', 'index_low', 'index_close', 'index_volume']
+            new_columns = ['bucket_ts', 'trading_symbol', 'option_type', 'strike', 'ce_oi', 'ce_price_close', 'pe_oi', 'pe_price_close']
             missing_columns = [col for col in new_columns if col not in column_names]
             
             if missing_columns:
                 print(f"❌ Migration incomplete. Missing columns: {missing_columns}")
                 return False
             
-            # Check unique constraint
+            # Check primary key
             cursor.execute("""
                 SELECT CONSTRAINT_NAME 
                 FROM information_schema.TABLE_CONSTRAINTS 
                 WHERE TABLE_SCHEMA = %s 
                 AND TABLE_NAME = 'option_snapshots' 
-                AND CONSTRAINT_TYPE = 'UNIQUE'
+                AND CONSTRAINT_TYPE = 'PRIMARY KEY'
             """, (self.database,))
             
-            constraints = cursor.fetchall()
+            primary_keys = cursor.fetchall()
             
             connection.close()
             
-            if constraints:
+            if primary_keys:
                 print("✅ Migration verification successful")
                 print(f"   New columns: {new_columns}")
-                print(f"   Unique constraints: {len(constraints)}")
+                print(f"   Primary key: {primary_keys[0][0]}")
                 return True
             else:
-                print("❌ Unique constraint not found")
+                print("❌ Primary key not found")
                 return False
             
         except Error as e:
@@ -229,7 +247,7 @@ class SchemaMigrator:
     
     def run_migration(self):
         """Run the complete migration process"""
-        print("🚀 Starting Database Schema Migration")
+        print("🚀 Starting Database Migration to v3 Schema")
         print("=" * 60)
         
         # Check current schema
@@ -241,14 +259,17 @@ class SchemaMigrator:
             return False
         
         if not schema_info['needs_migration']:
-            print("✅ Schema is already up to date. No migration needed.")
+            print("✅ Schema is already v3. No migration needed.")
             return True
         
-        print(f"📋 Current columns: {len(schema_info['column_names'])}")
-        print(f"📋 Missing columns: {schema_info['missing_columns']}")
+        if schema_info['table_exists']:
+            print(f"📋 Current columns: {len(schema_info['column_names'])}")
+            print(f"📋 Missing columns: {schema_info['missing_columns']}")
+        else:
+            print("📋 No existing table found. Will create new v3 schema.")
         
         # Confirm migration
-        print("\n⚠️  This will modify your existing option_snapshots table.")
+        print("\n⚠️  This will replace your existing option_snapshots table.")
         print("   A backup will be created automatically.")
         response = input("   Continue with migration? (y/N): ")
         
@@ -257,21 +278,23 @@ class SchemaMigrator:
             return False
         
         # Create backup
-        print("\n📦 Creating backup...")
-        if not self.backup_existing_data():
-            print("❌ Backup failed. Migration cancelled.")
-            return False
+        if schema_info['table_exists']:
+            print("\n📦 Creating backup...")
+            if not self.backup_existing_data():
+                print("❌ Backup failed. Migration cancelled.")
+                return False
         
-        # Add new columns
-        print("\n🔧 Adding new columns...")
-        if not self.add_new_columns():
-            print("❌ Failed to add columns. Migration failed.")
-            return False
+        # Drop old table
+        if schema_info['table_exists']:
+            print("\n🗑️  Dropping old table...")
+            if not self.drop_old_table():
+                print("❌ Failed to drop old table. Migration failed.")
+                return False
         
-        # Add unique constraint
-        print("\n🔧 Adding unique constraint...")
-        if not self.add_unique_constraint():
-            print("❌ Failed to add unique constraint. Migration failed.")
+        # Create new schema
+        print("\n🔧 Creating new v3 schema...")
+        if not self.create_new_schema():
+            print("❌ Failed to create new schema. Migration failed.")
             return False
         
         # Verify migration
@@ -281,16 +304,18 @@ class SchemaMigrator:
             return False
         
         print("\n" + "=" * 60)
-        print("🎉 MIGRATION COMPLETED SUCCESSFULLY!")
+        print("🎉 MIGRATION TO v3 COMPLETED SUCCESSFULLY!")
         print("=" * 60)
         print("✅ New schema features:")
-        print("   - Index candle data (open, high, low, close, volume)")
-        print("   - Unique constraint for 3-minute buckets")
-        print("   - Ready for adaptive polling system")
+        print("   - Simplified structure with essential data")
+        print("   - bucket_ts for 3-minute bucket timestamps")
+        print("   - trading_symbol for easy identification")
+        print("   - ce_price_close and pe_price_close from getCandleData")
+        print("   - Primary key on (bucket_ts, trading_symbol)")
         print("\n📋 Next steps:")
-        print("   1. Update your code to use the new schema")
-        print("   2. Test the upgraded system")
-        print("   3. Monitor data collection")
+        print("   1. Test the new adaptive polling system")
+        print("   2. Run the test script: python test_adaptive_system.py")
+        print("   3. Start live tracking with the new system")
         
         return True
 
@@ -317,7 +342,7 @@ def main():
     print()
     
     # Run migration
-    migrator = SchemaMigrator(**config)
+    migrator = V3SchemaMigrator(**config)
     success = migrator.run_migration()
     
     if not success:

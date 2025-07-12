@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OI Tracker Dashboard - Phase 5</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .loading { opacity: 0.5; pointer-events: none; }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <!-- Header -->
+    <header class="bg-blue-600 text-white p-4 shadow-lg">
+        <div class="container mx-auto">
+            <h1 class="text-2xl font-bold">OI Tracker Dashboard</h1>
+            <p class="text-blue-100">Phase 5: Dashboard Intelligence & AI Playback System</p>
+        </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="bg-white shadow-md">
+        <div class="container mx-auto">
+            <div class="flex space-x-1">
+                <button class="tab-btn active px-6 py-3 text-blue-600 border-b-2 border-blue-600" data-tab="pattern-insights">
+                    📊 Pattern Insights
+                </button>
+                <button class="tab-btn px-6 py-3 text-gray-600 hover:text-blue-600" data-tab="trade-setups">
+                    🤖 AI Trade Setups
+                </button>
+                <button class="tab-btn px-6 py-3 text-gray-600 hover:text-blue-600" data-tab="global-sentiment">
+                    🌍 Global Sentiment
+                </button>
+                <button class="tab-btn px-6 py-3 text-gray-600 hover:text-blue-600" data-tab="advanced-charts">
+                    📈 Advanced Charts
+                </button>
+                <button class="tab-btn px-6 py-3 text-gray-600 hover:text-blue-600" data-tab="backend-status">
+                    ⚙️ Backend Status
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container mx-auto p-6">
+        <!-- Tab 1: Pattern Insights -->
+        <div id="pattern-insights" class="tab-content active">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-bold mb-4">OI Pattern Insights</h2>
+                
+                <!-- Filters -->
+                <div class="grid grid-cols-1 md:grid-cols-6 gap-4 mb-6">
+                    <select id="pattern-index" class="border rounded px-3 py-2">
+                        <option value="NIFTY">NIFTY</option>
+                        <option value="BANKNIFTY">BANKNIFTY</option>
+                    </select>
+                    <input type="datetime-local" id="pattern-start" class="border rounded px-3 py-2">
+                    <input type="datetime-local" id="pattern-end" class="border rounded px-3 py-2">
+                    <select id="pattern-quadrant" class="border rounded px-3 py-2">
+                        <option value="">All Quadrants</option>
+                        <option value="LONG_BUILDUP">Long Buildup</option>
+                        <option value="SHORT_COVERING">Short Covering</option>
+                        <option value="SHORT_BUILDUP">Short Buildup</option>
+                        <option value="LONG_UNWINDING">Long Unwinding</option>
+                        <option value="NEUTRAL">Neutral</option>
+                    </select>
+                    <input type="number" id="pattern-strike-range" value="5" placeholder="ATM ± N" class="border rounded px-3 py-2">
+                    <button onclick="loadPatternInsights()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                        🔍 Load
+                    </button>
+                </div>
+
+                <!-- Results Table -->
+                <div class="overflow-x-auto">
+                    <table class="w-full table-auto">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-2 text-left">Time</th>
+                                <th class="px-4 py-2 text-left">Strike</th>
+                                <th class="px-4 py-2 text-left">Quadrant</th>
+                                <th class="px-4 py-2 text-left">CE OI Change</th>
+                                <th class="px-4 py-2 text-left">PE OI Change</th>
+                                <th class="px-4 py-2 text-left">Confidence</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pattern-results">
+                            <!-- Results will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 2: AI Trade Setups -->
+        <div id="trade-setups" class="tab-content">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-bold mb-4">AI Trade Setups</h2>
+                
+                <!-- Filters -->
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+                    <select id="setup-index" class="border rounded px-3 py-2">
+                        <option value="NIFTY">NIFTY</option>
+                        <option value="BANKNIFTY">BANKNIFTY</option>
+                    </select>
+                    <input type="number" id="setup-confidence" value="70" placeholder="Min Confidence" class="border rounded px-3 py-2">
+                    <select id="setup-bias" class="border rounded px-3 py-2">
+                        <option value="">All Bias</option>
+                        <option value="BULLISH">Bullish</option>
+                        <option value="BEARISH">Bearish</option>
+                        <option value="NEUTRAL">Neutral</option>
+                    </select>
+                    <label class="flex items-center">
+                        <input type="checkbox" id="auto-refresh" class="mr-2">
+                        Auto Refresh
+                    </label>
+                    <button onclick="loadTradeSetups()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+                        🔄 Load
+                    </button>
+                </div>
+
+                <!-- Trade Setup Cards -->
+                <div id="trade-setup-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Cards will be loaded here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 3: Global Sentiment (Placeholder) -->
+        <div id="global-sentiment" class="tab-content">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-bold mb-4">Global Sentiment</h2>
+                <div class="text-center py-12">
+                    <div class="text-6xl mb-4">🚧</div>
+                    <h3 class="text-xl font-semibold mb-2">Coming Soon</h3>
+                    <p class="text-gray-600">Phase 6 will include:</p>
+                    <ul class="text-gray-600 mt-2">
+                        <li>• Global indices (SGX Nifty, INDIA VIX)</li>
+                        <li>• Commodities (Crude, DXY, USDINR)</li>
+                        <li>• News API + LLM summaries</li>
+                        <li>• Real-time sentiment analysis</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 4: Advanced Charts -->
+        <div id="advanced-charts" class="tab-content">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-bold mb-4">Advanced Charts</h2>
+                
+                <!-- Chart Controls -->
+                <div class="mb-6">
+                    <select id="chart-index" class="border rounded px-3 py-2 mr-4">
+                        <option value="NIFTY">NIFTY</option>
+                        <option value="BANKNIFTY">BANKNIFTY</option>
+                    </select>
+                    <button onclick="loadAdvancedCharts()" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">
+                        📊 Load Chart
+                    </button>
+                </div>
+
+                <!-- Chart Container -->
+                <div class="mb-6">
+                    <canvas id="priceChart" width="400" height="200"></canvas>
+                </div>
+
+                <!-- ATM Strikes Table -->
+                <div class="overflow-x-auto">
+                    <table class="w-full table-auto">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-2 text-left">Strike</th>
+                                <th class="px-4 py-2 text-left">CE OI</th>
+                                <th class="px-4 py-2 text-left">PE OI</th>
+                                <th class="px-4 py-2 text-left">CE LTP</th>
+                                <th class="px-4 py-2 text-left">PE LTP</th>
+                                <th class="px-4 py-2 text-left">Delta</th>
+                                <th class="px-4 py-2 text-left">IV</th>
+                            </tr>
+                        </thead>
+                        <tbody id="atm-strikes-table">
+                            <!-- ATM strikes data will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 5: Backend Status -->
+        <div id="backend-status" class="tab-content">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-bold mb-4">Backend Status</h2>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- System Status -->
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h3 class="font-semibold mb-3">System Status</h3>
+                        <div id="system-status">
+                            <!-- Status will be loaded here -->
+                        </div>
+                    </div>
+
+                    <!-- Performance Metrics -->
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h3 class="font-semibold mb-3">Performance Metrics</h3>
+                        <div id="performance-metrics">
+                            <!-- Metrics will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Refresh Button -->
+                <div class="mt-6">
+                    <button onclick="loadBackendStatus()" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">
+                        🔄 Refresh Status
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- WebSocket Status -->
+    <div id="ws-status" class="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded-lg">
+        🔌 Connecting...
+    </div>
+
+    <script>
+        // API Configuration
+        const API_BASE = 'http://localhost:8000';
+        let ws = null;
+        let autoRefreshInterval = null;
+
+        // Tab Management
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Remove active class from all tabs
+                document.querySelectorAll('.tab-btn').forEach(b => {
+                    b.classList.remove('active', 'text-blue-600', 'border-blue-600');
+                    b.classList.add('text-gray-600');
+                });
+                
+                // Add active class to clicked tab
+                btn.classList.add('active', 'text-blue-600', 'border-blue-600');
+                btn.classList.remove('text-gray-600');
+                
+                // Show corresponding content
+                const tabId = btn.getAttribute('data-tab');
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.remove('active');
+                });
+                document.getElementById(tabId).classList.add('active');
+                
+                // Load data for the tab
+                loadTabData(tabId);
+            });
+        });
+
+        // Load data based on active tab
+        function loadTabData(tabId) {
+            switch(tabId) {
+                case 'pattern-insights':
+                    loadPatternInsights();
+                    break;
+                case 'trade-setups':
+                    loadTradeSetups();
+                    break;
+                case 'advanced-charts':
+                    loadAdvancedCharts();
+                    break;
+                case 'backend-status':
+                    loadBackendStatus();
+                    break;
+            }
+        }
+
+        // Pattern Insights
+        async function loadPatternInsights() {
+            try {
+                const index = document.getElementById('pattern-index').value;
+                const start = document.getElementById('pattern-start').value;
+                const end = document.getElementById('pattern-end').value;
+                const quadrant = document.getElementById('pattern-quadrant').value;
+                const strikeRange = document.getElementById('pattern-strike-range').value;
+
+                const params = new URLSearchParams({
+                    index_name: index,
+                    strike_range: strikeRange,
+                    limit: 100
+                });
+
+                if (start) params.append('start_time', start);
+                if (end) params.append('end_time', end);
+                if (quadrant) params.append('quadrant', quadrant);
+
+                const response = await fetch(`${API_BASE}/api/pattern_insights?${params}`);
+                const data = await response.json();
+
+                displayPatternResults(data);
+            } catch (error) {
+                console.error('Error loading pattern insights:', error);
+            }
+        }
+
+        function displayPatternResults(data) {
+            const tbody = document.getElementById('pattern-results');
+            tbody.innerHTML = '';
+
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                row.className = 'border-b hover:bg-gray-50';
+                row.innerHTML = `
+                    <td class="px-4 py-2">${new Date(item.bucket_ts).toLocaleTimeString()}</td>
+                    <td class="px-4 py-2">${item.strike}</td>
+                    <td class="px-4 py-2">
+                        <span class="px-2 py-1 rounded text-xs ${getQuadrantColor(item.oi_quadrant)}">
+                            ${item.oi_quadrant}
+                        </span>
+                    </td>
+                    <td class="px-4 py-2 ${item.ce_oi_change > 0 ? 'text-green-600' : 'text-red-600'}">
+                        ${item.ce_oi_change > 0 ? '+' : ''}${item.ce_oi_change}
+                    </td>
+                    <td class="px-4 py-2 ${item.pe_oi_change > 0 ? 'text-green-600' : 'text-red-600'}">
+                        ${item.pe_oi_change > 0 ? '+' : ''}${item.pe_oi_change}
+                    </td>
+                    <td class="px-4 py-2">${item.confidence_score}%</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function getQuadrantColor(quadrant) {
+            const colors = {
+                'LONG_BUILDUP': 'bg-green-100 text-green-800',
+                'SHORT_COVERING': 'bg-blue-100 text-blue-800',
+                'SHORT_BUILDUP': 'bg-red-100 text-red-800',
+                'LONG_UNWINDING': 'bg-yellow-100 text-yellow-800',
+                'NEUTRAL': 'bg-gray-100 text-gray-800'
+            };
+            return colors[quadrant] || 'bg-gray-100 text-gray-800';
+        }
+
+        // Trade Setups
+        async function loadTradeSetups() {
+            try {
+                const index = document.getElementById('setup-index').value;
+                const confidence = document.getElementById('setup-confidence').value;
+                const bias = document.getElementById('setup-bias').value;
+
+                const params = new URLSearchParams({
+                    index_name: index,
+                    confidence_min: confidence,
+                    limit: 50
+                });
+
+                if (bias) params.append('bias', bias);
+
+                const response = await fetch(`${API_BASE}/api/trade_setups?${params}`);
+                const data = await response.json();
+
+                displayTradeSetups(data);
+            } catch (error) {
+                console.error('Error loading trade setups:', error);
+            }
+        }
+
+        function displayTradeSetups(data) {
+            const container = document.getElementById('trade-setup-cards');
+            container.innerHTML = '';
+
+            data.forEach(setup => {
+                const card = document.createElement('div');
+                card.className = 'bg-white border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow';
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-3">
+                        <span class="px-2 py-1 rounded text-xs ${getBiasColor(setup.bias)}">
+                            ${setup.bias}
+                        </span>
+                        <span class="text-sm text-gray-500">${new Date(setup.bucket_ts).toLocaleTimeString()}</span>
+                    </div>
+                    <h3 class="font-semibold mb-2">${setup.strategy}</h3>
+                    <div class="grid grid-cols-2 gap-2 text-sm mb-3">
+                        <div>Entry: ${setup.entry_strike} ${setup.entry_type}</div>
+                        <div>Price: ₹${setup.entry_price}</div>
+                        <div>SL: ₹${setup.stop_loss}</div>
+                        <div>Target: ₹${setup.target}</div>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-600">Confidence: ${setup.confidence}%</span>
+                        <button onclick="pinSetup(${setup.id})" class="text-blue-600 hover:text-blue-800">
+                            📌 Pin
+                        </button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function getBiasColor(bias) {
+            const colors = {
+                'BULLISH': 'bg-green-100 text-green-800',
+                'BEARISH': 'bg-red-100 text-red-800',
+                'NEUTRAL': 'bg-gray-100 text-gray-800'
+            };
+            return colors[bias] || 'bg-gray-100 text-gray-800';
+        }
+
+        function pinSetup(id) {
+            // Implementation for pinning setups
+            console.log('Pinning setup:', id);
+        }
+
+        // Advanced Charts
+        async function loadAdvancedCharts() {
+            try {
+                const index = document.getElementById('chart-index').value;
+                
+                // Load chart data (placeholder for now)
+                const ctx = document.getElementById('priceChart').getContext('2d');
+                
+                // Sample chart data
+                const chartData = {
+                    labels: ['9:15', '9:30', '9:45', '10:00', '10:15', '10:30'],
+                    datasets: [{
+                        label: `${index} Price`,
+                        data: [24000, 24050, 24025, 24100, 24075, 24150],
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.1
+                    }]
+                };
+
+                new Chart(ctx, {
+                    type: 'line',
+                    data: chartData,
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: `${index} Price Chart`
+                            }
+                        }
+                    }
+                });
+
+                // Load ATM strikes table
+                loadATMStrikesTable(index);
+            } catch (error) {
+                console.error('Error loading advanced charts:', error);
+            }
+        }
+
+        function loadATMStrikesTable(index) {
+            // Placeholder for ATM strikes data
+            const tbody = document.getElementById('atm-strikes-table');
+            tbody.innerHTML = `
+                <tr class="border-b">
+                    <td class="px-4 py-2">23900</td>
+                    <td class="px-4 py-2">45000</td>
+                    <td class="px-4 py-2">52000</td>
+                    <td class="px-4 py-2">150.50</td>
+                    <td class="px-4 py-2">90.25</td>
+                    <td class="px-4 py-2">0.45</td>
+                    <td class="px-4 py-2">16.2</td>
+                </tr>
+                <tr class="border-b">
+                    <td class="px-4 py-2">24000</td>
+                    <td class="px-4 py-2">50000</td>
+                    <td class="px-4 py-2">48000</td>
+                    <td class="px-4 py-2">100.00</td>
+                    <td class="px-4 py-2">100.00</td>
+                    <td class="px-4 py-2">0.50</td>
+                    <td class="px-4 py-2">15.0</td>
+                </tr>
+            `;
+        }
+
+        // Backend Status
+        async function loadBackendStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/api/status`);
+                const data = await response.json();
+
+                displayBackendStatus(data);
+            } catch (error) {
+                console.error('Error loading backend status:', error);
+            }
+        }
+
+        function displayBackendStatus(data) {
+            const systemStatus = document.getElementById('system-status');
+            const performanceMetrics = document.getElementById('performance-metrics');
+
+            systemStatus.innerHTML = `
+                <div class="space-y-2">
+                    <div class="flex justify-between">
+                        <span>Status:</span>
+                        <span class="${data.status === 'operational' ? 'text-green-600' : 'text-red-600'}">
+                            ${data.status.toUpperCase()}
+                        </span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Last Snapshot:</span>
+                        <span>${data.last_snapshot ? new Date(data.last_snapshot).toLocaleString() : 'N/A'}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Last AI Insight:</span>
+                        <span>${data.last_ai_insight ? new Date(data.last_ai_insight).toLocaleString() : 'N/A'}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Token Valid:</span>
+                        <span class="${data.token_valid ? 'text-green-600' : 'text-red-600'}">
+                            ${data.token_valid ? '✅' : '❌'}
+                        </span>
+                    </div>
+                </div>
+            `;
+
+            performanceMetrics.innerHTML = `
+                <div class="space-y-2">
+                    <div class="flex justify-between">
+                        <span>Total Records:</span>
+                        <span>${data.total_records.toLocaleString()}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Polling Interval:</span>
+                        <span>${data.polling_interval}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Active Connections:</span>
+                        <span>${data.active_connections}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Last Update:</span>
+                        <span>${new Date(data.timestamp).toLocaleString()}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Auto Refresh
+        document.getElementById('auto-refresh').addEventListener('change', function() {
+            if (this.checked) {
+                autoRefreshInterval = setInterval(loadTradeSetups, 30000); // 30 seconds
+            } else {
+                if (autoRefreshInterval) {
+                    clearInterval(autoRefreshInterval);
+                    autoRefreshInterval = null;
+                }
+            }
+        });
+
+        // WebSocket Connection
+        function connectWebSocket() {
+            ws = new WebSocket('ws://localhost:8000/ws');
+            
+            ws.onopen = function() {
+                document.getElementById('ws-status').innerHTML = '🟢 Connected';
+                document.getElementById('ws-status').className = 'fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg';
+            };
+            
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                console.log('WebSocket message:', data);
+            };
+            
+            ws.onclose = function() {
+                document.getElementById('ws-status').innerHTML = '🔴 Disconnected';
+                document.getElementById('ws-status').className = 'fixed bottom-4 right-4 bg-red-600 text-white px-4 py-2 rounded-lg';
+                // Reconnect after 5 seconds
+                setTimeout(connectWebSocket, 5000);
+            };
+            
+            ws.onerror = function(error) {
+                console.error('WebSocket error:', error);
+            };
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set default datetime values
+            const now = new Date();
+            const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+            
+            document.getElementById('pattern-start').value = oneHourAgo.toISOString().slice(0, 16);
+            document.getElementById('pattern-end').value = now.toISOString().slice(0, 16);
+            
+            // Load initial data
+            loadTabData('pattern-insights');
+            
+            // Connect WebSocket
+            connectWebSocket();
+        });
+    </script>
+</body>
+</html> 

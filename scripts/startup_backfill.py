@@ -11,6 +11,18 @@ from angel_login import angel_login
 from option_chain_fetcher import fetch_option_chain_data
 from store_option_data import store_option_chain_data
 
+def safe_int(val):
+    try:
+        if isinstance(val, (int, float)):
+            return int(val)
+        if isinstance(val, str):
+            return int(float(val))
+        if hasattr(val, '__int__'):
+            return int(val)
+    except Exception:
+        pass
+    return 0
+
 class BackfillEngine:
     def __init__(self):
         self.ist_tz = pytz.timezone('Asia/Kolkata')
@@ -56,10 +68,11 @@ class BackfillEngine:
             
             cursor.execute('''
                 SELECT COUNT(*) FROM option_snapshots 
-                WHERE time = ?
+                WHERE time = %s
             ''', (timestamp,))
             
-            count = cursor.fetchone()[0]
+            result = cursor.fetchone()
+            count = result[0] if result is not None else 0
             conn.close()
             
             return count > 0

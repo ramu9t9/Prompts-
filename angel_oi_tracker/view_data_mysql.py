@@ -12,6 +12,18 @@ import os
 from datetime import datetime, timedelta
 import pytz
 
+def safe_int(val):
+    try:
+        if isinstance(val, (int, float)):
+            return int(val)
+        if isinstance(val, str):
+            return int(float(val))
+        if hasattr(val, '__int__'):
+            return int(val)
+    except Exception:
+        pass
+    return 0
+
 class MySQLDataViewer:
     def __init__(self, host='localhost', user='root', password='YourNewPassword', database='options_analytics'):
         self.host = host
@@ -75,11 +87,16 @@ class MySQLDataViewer:
             # Total records
             cursor = connection.cursor()
             cursor.execute("SELECT COUNT(*) FROM option_snapshots")
-            total_records = cursor.fetchone()[0]
+            result = cursor.fetchone()
+            total_records = result[0] if result is not None else 0
             
             # Date range
             cursor.execute("SELECT MIN(time), MAX(time) FROM option_snapshots")
-            min_time, max_time = cursor.fetchone()
+            result = cursor.fetchone()
+            if result is not None:
+                min_time, max_time = result
+            else:
+                min_time, max_time = None, None
             
             # Records by index
             cursor.execute("""
@@ -90,13 +107,14 @@ class MySQLDataViewer:
             """)
             index_counts = cursor.fetchall()
             
-            # Latest data count
-            today = datetime.now().date()
+            # Today's records
+            today = datetime.now(self.ist_tz).strftime('%Y-%m-%d')
             cursor.execute("""
-                SELECT COUNT(*) FROM option_snapshots
+                SELECT COUNT(*) FROM option_snapshots 
                 WHERE DATE(time) = %s
             """, (today,))
-            today_count = cursor.fetchone()[0]
+            result = cursor.fetchone()
+            today_count = result[0] if result is not None else 0
             
             connection.close()
             
