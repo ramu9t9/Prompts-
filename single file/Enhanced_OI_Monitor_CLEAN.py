@@ -202,14 +202,51 @@ ANGEL_USER_ID = "r117172"
 ANGEL_PIN = 9029
 ANGEL_TOTP_SECRET = "Y4GDOA6SL5VOCKQPFLR5EM3HOY"
 
-obj = SmartConnect(api_key=ANGEL_API_KEY)
-user_id = ANGEL_USER_ID
-try:
-    totp = pyotp.TOTP(ANGEL_TOTP_SECRET).now()
-    data = obj.generateSession(user_id, ANGEL_PIN, totp)
-except Exception as _auth_e:
-    print(f"❌ SmartConnect auth error: {_auth_e}")
-    data = {}
+def authenticate_angel_one():
+    """Authenticate with Angel One with retry mechanism."""
+    obj = SmartConnect(api_key=ANGEL_API_KEY)
+    user_id = ANGEL_USER_ID
+    
+    for attempt in range(3):  # Try 3 times
+        try:
+            totp = pyotp.TOTP(ANGEL_TOTP_SECRET).now()
+            print(f"🔐 Authentication attempt {attempt + 1} with TOTP: {totp}")
+            data = obj.generateSession(user_id, ANGEL_PIN, totp)
+            
+            if data.get('status'):
+                print("✅ Authentication successful!")
+                return obj, data
+            else:
+                print(f"❌ Authentication failed: {data.get('message', 'Unknown error')}")
+                
+        except Exception as e:
+            print(f"❌ Authentication attempt {attempt + 1} failed: {e}")
+            
+        if attempt < 2:  # Don't sleep after last attempt
+            print("⏳ Waiting 5 seconds before retry...")
+            time.sleep(5)
+    
+    print("❌ All authentication attempts failed")
+    return obj, {}
+
+# Authenticate with retry mechanism
+obj, data = authenticate_angel_one()
+
+def refresh_authentication():
+    """Refresh authentication if needed."""
+    global obj, data
+    try:
+        # Test if current session is still valid
+        test_resp = obj.getMarketData("LTP", {"NSE": ["99926000"]})
+        if not test_resp or not test_resp.get('status'):
+            print("🔄 Session expired, refreshing authentication...")
+            obj, data = authenticate_angel_one()
+            return obj, data
+        return obj, data
+    except Exception as e:
+        print(f"🔄 Authentication refresh needed: {e}")
+        obj, data = authenticate_angel_one()
+        return obj, data
 
 # ====== GLOBAL VARIABLES ======
 current_expiry = None
@@ -425,7 +462,7 @@ def start_ws_feed(initial=None):
         sws = SmartWebSocketV2(
             auth_token=auth_token,
             api_key=obj.api_key,
-            client_code=user_id,
+            client_code=ANGEL_USER_ID,
             feed_token=feed_token
         )
         
