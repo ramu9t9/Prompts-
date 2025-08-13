@@ -2343,7 +2343,9 @@ def format_table_output_improved(current_df, previous_df, label="OI Analysis", c
         # Send to Telegram if requested
         if send_to_telegram:
             try:
-                create_improved_table_image(merged_df, market_analysis, label, changed_count)
+                image_buffer = create_improved_table_image(merged_df, market_analysis, label, changed_count)
+                caption = f"📊 {label} - {datetime.now().strftime('%H:%M:%S')} | PCR: {pcr:.2f} | Max Pain: {max_pain}"
+                send_telegram_image(image_buffer, caption)
                 print("📱 Telegram image created and sent")
             except Exception as e:
                 print(f"❌ Telegram image error: {e}")
