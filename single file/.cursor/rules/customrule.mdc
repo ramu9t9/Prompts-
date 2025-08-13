@@ -1,0 +1,4 @@
+---
+alwaysApply: true
+---
+Note - Don't add new function everytime, first check whether is available same kind of function in current codebase or not. If availble then modified it accordingly if not then create new one.
