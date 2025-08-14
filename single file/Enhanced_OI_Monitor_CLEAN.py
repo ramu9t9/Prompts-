@@ -107,7 +107,7 @@ def log_context_summary(context_data):
 
 # ====== CONFIGURATION ======
 TELEGRAM_BOT_TOKEN = "8396648490:AAFQfknYdi3oXqIDk9r6U9AZUzEgtAqgV7E"
-TELEGRAM_CHAT_ID = "1022980118, 1585910202"
+TELEGRAM_CHAT_ID = "1022980118"  # Remove invalid chat ID
 ATM_WINDOW = 2  # ATM ±2 strikes
 
 # Interactive market segment selection
@@ -687,9 +687,11 @@ def _on_error_ws(wsapp, error):
     print(f"❌ WSv2 error: {error}")
 
 def fetch_greeks(obj, underlying='NIFTY', expiry='14AUG2025'):
-    """Fetch Greeks data using optionGreek API."""
+    """Fetch Greeks data using optionGreek API with rate limiting."""
     greekParam = {"name": underlying, "expirydate": expiry}
     try:
+        # Add longer delay to prevent rate limiting
+        time.sleep(1.0)  # 1 second delay between API calls
         greekRes = obj.optionGreek(greekParam)
         
         if greekRes.get('status', False):
@@ -714,9 +716,19 @@ def fetch_greeks(obj, underlying='NIFTY', expiry='14AUG2025'):
             else:
                 print("❌ No Greeks data in API response")
         else:
-            print(f"❌ Greeks API failed: {greekRes.get('message', 'Unknown error')}")
+            error_msg = greekRes.get('message', 'Unknown error')
+            print(f"❌ Greeks API failed: {error_msg}")
+            
+            # If rate limited, skip Greeks for this session
+            if "rate" in error_msg.lower() or "access denied" in error_msg.lower():
+                print("⚠️ Rate limited - skipping Greeks data for this session")
+                return pd.DataFrame()
     except Exception as e:
         print(f"❌ Error fetching Greeks: {e}")
+        # If rate limited, skip Greeks for this session
+        if "rate" in str(e).lower() or "access denied" in str(e).lower():
+            print("⚠️ Rate limited - skipping Greeks data for this session")
+            return pd.DataFrame()
     return pd.DataFrame()
 
 def enrich_with_greeks(df: pd.DataFrame) -> pd.DataFrame:
@@ -789,7 +801,8 @@ def get_option_chain_snapshot(target_symbols):
         if not exchanges:
             return pd.DataFrame()
         
-        # Get market data
+        # Get market data with rate limiting
+        time.sleep(0.2)  # 200ms delay to prevent rate limiting
         resp = obj.getMarketData("FULL", exchanges)
         
         # Get the data field
@@ -1097,6 +1110,7 @@ def _guess_spot_for_mapping():
     try:
         # 2) Try live API call
         if nifty_index_token:
+            time.sleep(0.1)  # 100ms delay to prevent rate limiting
             resp = obj.getMarketData("LTP", {"NSE": [nifty_index_token]})
             if resp and 'data' in resp:
                 ltp = resp['data'][0].get('ltp', 0)
@@ -1278,7 +1292,7 @@ class OpenRouterClient:
         self.os = os
         self.time = time
         self.requests = requests
-        self.api_key = api_key or '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'
+        self.api_key = api_key or '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'
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
         self.default_model = default_model
         self.rate_limit = 2
@@ -1347,11 +1361,30 @@ class OpenRouterClient:
 
 # Initialize AI client after class definition
 try:
-    _ai_client = OpenRouterClient(api_key='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')
+    _ai_client = OpenRouterClient(api_key='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')
+    # Test the API key with a simple request
+    test_resp = _ai_client.chat(
+        model="openai/gpt-4o-mini-2024-07-18",
+        messages=[{"role": "user", "content": "Hello"}],
+        max_tokens=10
+    )
+    if not test_resp or "error" in str(test_resp).lower() or "401" in str(test_resp):
+        print(f"❌ OpenRouter API key test failed: {test_resp}")
+        _ai_client = None
+        USE_AI_COACH = False
+        print("🚫 AI Coach disabled due to invalid API key")
+    else:
+        print("✅ OpenRouter API key validated successfully")
+        # Additional validation - check if we can get a proper response
+        if isinstance(test_resp, dict) and test_resp.get("content"):
+            print("✅ OpenRouter API key working correctly")
+        else:
+            print(f"⚠️ OpenRouter API key test response format: {test_resp}")
 except Exception as _e:
-    print(f"⚠️ OpenRouterClient not available: {_e}")
+    print(f"❌ OpenRouterClient initialization failed: {_e}")
     _ai_client = None
     USE_AI_COACH = False
+    print("🚫 AI Coach disabled due to initialization error")
 
 def ai_trade_coach(context: dict) -> dict:
     """AI trade coach with compact context."""
@@ -1428,12 +1461,22 @@ def ai_trade_coach(context: dict) -> dict:
         ce_strikes = list(ce_series.keys()) if ce_series else []
         pe_strikes = list(pe_series.keys()) if pe_series else []
         
-        resp = _ai_client.chat(
-            model=_Ai_MINIMAL_MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-            max_tokens=400
-        )
+        try:
+            resp = _ai_client.chat(
+                model=_Ai_MINIMAL_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                max_tokens=400
+            )
+            
+            # Check for 401 error and disable AI if needed
+            if isinstance(resp, dict) and "error" in resp and "401" in str(resp):
+                print("🚫 OpenRouter API key invalid - disabling AI Coach")
+                return {"decision": "WAIT", "reason": "AI disabled - invalid API key"}
+                
+        except Exception as ai_error:
+            print(f"❌ AI Coach error: {ai_error}")
+            return {"decision": "WAIT", "reason": f"AI error: {ai_error}"}
         
         msg = resp.get("content", "") if isinstance(resp, dict) else str(resp)
         api_request = resp.get("api_request", {}) if isinstance(resp, dict) else {}
@@ -1574,12 +1617,22 @@ def ai_trade_coach_rich(context: dict = None) -> dict:
         # Debug: Show data size being sent to AI
         prompt_size = len(prompt)
         
-        resp = _ai_client.chat(
-            model=_Ai_RICH_MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-            max_tokens=800
-        )
+        try:
+            resp = _ai_client.chat(
+                model=_Ai_RICH_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                max_tokens=800
+            )
+            
+            # Check for 401 error and disable AI if needed
+            if isinstance(resp, dict) and "error" in resp and "401" in str(resp):
+                print("🚫 OpenRouter API key invalid - disabling AI Coach")
+                return {"decision": "WAIT", "reason": "AI disabled - invalid API key"}
+                
+        except Exception as ai_error:
+            print(f"❌ Rich AI Coach error: {ai_error}")
+            return {"decision": "WAIT", "reason": f"AI error: {ai_error}"}
         
         msg = resp.get("content", "") if isinstance(resp, dict) else str(resp)
         api_request = resp.get("api_request", {}) if isinstance(resp, dict) else {}
@@ -2315,9 +2368,9 @@ def format_table_output_improved(current_df, previous_df, label="OI Analysis", c
         market_analysis = compute_pcr_maxpain_support_resistance(current_df)
         
         # Generate console output
-        print("\n" + "=" * 120)
+        print("\n" + "=" * 220)
         print(f"📊 {label} - {len(merged_df)} strikes analyzed")
-        print("=" * 120)
+        print("=" * 220)
         
         # Market summary
         direction = market_analysis.get('direction', 'NEUTRAL')
@@ -2325,7 +2378,7 @@ def format_table_output_improved(current_df, previous_df, label="OI Analysis", c
         max_pain = market_analysis.get('max_pain', 0)
         
         print(f"Market Direction: {direction} | PCR: {pcr:.2f} | Max Pain: {max_pain}")
-        print("-" * 120)
+        print("-" * 220)
         
         # Header with proper column order
         header = (f"{'Theta':>6} | {'Delta':>6} | {'Cls Chg%':>8} | {'OI Chg%':>8} | {'Prev Close':>12} | {'Curr Close':>12} | "
@@ -2333,7 +2386,7 @@ def format_table_output_improved(current_df, previous_df, label="OI Analysis", c
                   f"{'Curr OI':>10} | {'Prev OI':>10} | {'Curr Close':>12} | {'Prev Close':>12} | "
                   f"{'OI Chg%':>8} | {'Cls Chg%':>8} | {'Delta':>6} | {'Theta':>6} | {'Verdict':>25}")
         print(header)
-        print("-" * 120)
+        print("-" * 220)
         
         # Data rows
         for _, row in merged_df.iterrows():
@@ -2373,9 +2426,9 @@ def format_table_output_improved(current_df, previous_df, label="OI Analysis", c
                       f"{row.get('delta_put', 0):>6.2f} | {row.get('theta_put', 0):>6.2f} | {verdict_display:>25}")
             print(row_str)
         
-        print("-" * 120)
+        print("-" * 220)
         print(f"Total strikes: {len(merged_df)} | Changed: {changed_count} | PCR: {pcr:.2f} | Max Pain: {max_pain}")
-        print("=" * 120)
+        print("=" * 220)
         
         # Send to Telegram if requested
         if send_to_telegram:
@@ -2638,6 +2691,7 @@ def _coach_sampler_loop():
                     # Fallback to API if WebSocket cache is empty
                     if nifty_ltp == "N/A" and nifty_index_token:
                         try:
+                            time.sleep(0.1)  # 100ms delay to prevent rate limiting
                             resp = obj.getMarketData("LTP", {"NSE": [nifty_index_token]})
                             if resp and 'data' in resp and resp['data']:
                                 ltp = resp['data'][0].get('ltp', 0)
