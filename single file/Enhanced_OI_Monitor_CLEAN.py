@@ -1292,16 +1292,16 @@ class OpenRouterClient:
         self.os = os
         self.time = time
         self.requests = requests
-        self.api_key = api_key or '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'
+        self.api_key = api_key or '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'
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
         self.default_model = default_model
-        self.rate_limit = 2
+        self.rate_limit = 1  # Reduced to 1 request per 2 seconds
         self.last_request_time = 0
         self.logger = logging.getLogger('openrouter_client')
 
     def _rate_limit_delay(self):
         elapsed = self.time.time() - self.last_request_time
-        want = 1.0 / max(self.rate_limit, 1)
+        want = 2.0 / max(self.rate_limit, 1)  # Increased delay to 2 seconds between requests
         if elapsed < want:
             self.time.sleep(want - elapsed)
         self.last_request_time = self.time.time()
@@ -1310,7 +1310,7 @@ class OpenRouterClient:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://oi-tracker.local",
+            "HTTP-Referer": "https://github.com/ramu9t9/Prompts-",
             "X-Title": "OI Tracker AI"
         }
         for attempt in range(max_retries):
@@ -1325,6 +1325,7 @@ class OpenRouterClient:
                     self.time.sleep(wait)
                     continue
                 self.logger.error(f"OpenRouter error {r.status_code}: {r.text[:200]}")
+                print(f"🔍 OpenRouter API Error Details: Status={r.status_code}, Response={r.text[:300]}")
                 return None
             except Exception as e:
                 self.logger.error(f"OpenRouter request error: {e}")
@@ -1361,7 +1362,7 @@ class OpenRouterClient:
 
 # Initialize AI client after class definition
 try:
-    _ai_client = OpenRouterClient(api_key='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')
+    _ai_client = OpenRouterClient(api_key='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')
     # Test the API key with a simple request
     test_resp = _ai_client.chat(
         model="openai/gpt-4o-mini-2024-07-18",
@@ -1462,6 +1463,8 @@ def ai_trade_coach(context: dict) -> dict:
         pe_strikes = list(pe_series.keys()) if pe_series else []
         
         try:
+            # Add delay to prevent rate limiting
+            time.sleep(1)  # 1 second delay between AI requests
             resp = _ai_client.chat(
                 model=_Ai_MINIMAL_MODEL,
                 messages=[{"role": "user", "content": prompt}],
@@ -1618,6 +1621,8 @@ def ai_trade_coach_rich(context: dict = None) -> dict:
         prompt_size = len(prompt)
         
         try:
+            # Add delay to prevent rate limiting
+            time.sleep(1)  # 1 second delay between AI requests
             resp = _ai_client.chat(
                 model=_Ai_RICH_MODEL,
                 messages=[{"role": "user", "content": prompt}],

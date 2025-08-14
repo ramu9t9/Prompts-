@@ -27,7 +27,7 @@ TELEGRAM_CHAT_ID = "1022980118, 1585910202"
 ### **3. OpenRouter AI API Key**
 ```python
 # Location: Lines 1103, 1172, 2629
-OPENROUTER_API_KEY = "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"
+OPENROUTER_API_KEY = "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"
 ```
 
 ### **4. MCX Commodity**
